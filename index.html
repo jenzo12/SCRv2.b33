@@ -1,0 +1,776 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <title>SCR_v2</title>
+    <link href="jquery.mobile.custom.structure.css" rel="stylesheet" type="text/css" />
+    <link href="retina.css" rel="stylesheet" type="text/css" />
+    <link href="jquery.mobile.headerfooter.css" rel="stylesheet" type="text/css" />
+
+    <script type="text/javascript" src="jquery-1.7.2.min.js"></script>
+
+    <script type="text/javascript" src="jquery.mobile-1.3.1.min.js"></script>
+
+    <script type="text/javascript" src="phonegap.js"></script>
+
+    <script type="text/javascript" src="jquery.touchclick.js"></script>
+
+    <!--    <script src="http://192.168.1.200:8080/target/target-script-min.js#SCRv2"></script>-->
+
+    <script type="text/javascript">
+        //Build Notes: Based on SCRv2 (23), includes bug fixes identified by Dean on 1/20/2014. Updated "retry" function for fnCategories. Serialize About SCR as XML and using system browser for external sites
+        //Global Variables and Parameters
+        var build = 'SCRv2 (33)';
+        categoryFeed = new Array();
+        connError1 = '<div id="error">It appears you may have a slow or weak Internet connection. Retrying to fetch contents...</div>';
+        connError2 = '<div id="error"><div>No connection</div><br /><div id="btn_retry"><img src="button_retry.gif" /></div></div>';
+        connError3 = '<div id="error">It appears you do not have an Internet connection. Please try again when you have a signal.</div>';
+        connError4 = '<div id="error">There appears to be a problem with this category. Please try again later.</div>';
+        connState = '';
+        pixelRatio = '';
+        connTime1 = 10 * 1000;
+        connTime2 = 15 * 1000;
+        g_param = '';
+        g_params = '';
+        g_ID = '';
+        g_Feed = 'Home';
+        imgLoader = '<div id="loader"><img src="ajax-loader.gif" /></div>';
+        mainList = '';
+        mainFeed = new Array();
+        var titles = new Array();
+        var catTitle = '';
+        myUrl = '';
+        page = '';
+        paramFeed = '';
+        pixelRatio = '';
+        platform = '';
+        shareLink = '';
+        shareTitle = '';
+        linkVal = '';
+        url = '';
+        titleVal = '';
+
+        //set JQM default page transition to none
+        $(document).bind("mobileinit", function() {
+            $.mobile.defaultPageTransition = "none"
+        });
+        document.addEventListener("deviceready", onDeviceReady, false);
+        function onDeviceReady() {
+            fnCheckConnection();
+            fnDevicePlatform();
+            navigator.splashscreen.hide();
+            document.addEventListener("backbutton", onBackKeyDown, false);
+        }
+        //check device platform and apply iOS-specific stylesheet to help scroll function
+        function fnDevicePlatform() {
+            platform = device.platform;
+            if (platform == 'iOS') {
+                $('head').append('<link href="iOS.css" rel="stylesheet" type="text/css" />');
+            }
+
+        }
+
+        function fnCheckConnection() {
+            var networkState = navigator.network.connection.type;
+            var states = {};
+            states[Connection.UNKNOWN] = 1;
+            states[Connection.ETHERNET] = 1;
+            states[Connection.WIFI] = 1;
+            states[Connection.CELL_2G] = 1;
+            states[Connection.CELL_3G] = 1;
+            states[Connection.CELL_4G] = 1;
+            states[Connection.NONE] = 0;
+            connState = states[networkState];
+        }
+
+        //Production Links
+        var links = new Array();
+        links[0] = 'http://securitycouncilreport.org/a_scr_app/SCR_category_list_countries.xml';
+        links[1] = 'http://securitycouncilreport.org/a_scr_app/SCR_category_list_themes.xml';
+        links[2] = 'http://www.securitycouncilreport.org/a_scr_app/monthly_forecast.xml';
+        links[3] = 'http://whatsinblue.org/?nomobile=1';
+        links[4] = 'http://www.securitycouncilreport.org/a_scr_app/cross_cutting_report.xml';
+        links[5] = 'http://www.securitycouncilreport.org/a_scr_app/special_research_report.xml';
+        links[6] = 'http://www.securitycouncilreport.org/a_scr_app/update_report.xml';
+        links[7] = 'http://www.securitycouncilreport.org/a_scr_app/SCR_about_us.xml';
+        links[8] = 'http://www.securitycouncilreport.org/?nomobile=1';
+
+        //TEST LINKS
+        //                var links = new Array();
+        //                links[0] = 'xml/countries.xml'
+        //                links[1] = 'xml/themes.xml';
+        //                links[2] = 'xml/forecast.xml';
+        //                links[3] = 'http://whatsinblue.org/?nomobile=1';
+        //                links[4] = 'xml/cutting.xml';
+        //                links[5] = 'xml/special.xml';
+        //                links[6] = 'xml/update.xml';
+        //                links[7] = 'http://www.securitycouncilreport.org/?nomobile=1';
+        //                links[8] = 'http://www.securitycouncilreport.org/about-security-council-report.php';
+
+        function fnGetUrl(l) {
+            var url = links[l];
+            return url;
+        }
+
+        //Resets the html in the DOM to the initial state
+        function fnPageReset() {
+            $('body').scrollTop(0);
+            $('body').scrollTop(0);
+            $('#red').hide();
+            $('#main').hide();
+            $('#categories').hide();
+            $('#category_title').hide();
+            $('#articles').hide();
+            $('#content').hide();
+            $('#red').show();
+            $('#error').remove();
+            $('#category_title').html('');
+            $('#sections > ul').html('');
+            $('#top_title').html('');
+            $('#artfeed > ul').html('');
+            $('#story_pubDate').html('');
+            $('#story_title').html('');
+            $('#story_content').html('');
+            $('#top_title').remove();
+            $('.title_link').remove();
+            $('.category_link').remove();
+            $('.sub_category_link').remove();
+        }
+        //Email icon toggle function
+        function fnEmailToggle() {
+            //test page and set class attribute for email element
+            if (page == 'mainContent' || page == 'artContent' || page == 'altContent') {
+                $('#email').removeClass('icon_blank').addClass('icon_email');
+            }
+            else {
+                $('#email').removeClass('icon_email').addClass('icon_blank');
+            }
+        }
+        //Refresh/Back button toggle function
+        function fnRefreshToggle() {
+            if (page == 'Main') {
+                $('#back').hide();
+                $('#refresh').show();
+            }
+            else {
+                $('#back').show();
+                $('#refresh').hide();
+            }
+        }
+
+        //Hardware and software back button functionality
+        function fnBackArticles() {
+            $('#red').animate({ "opacity": "0" }, 100, function() {
+                fnPageReset();
+                fnEmailToggle();
+                fnLoadIbC();
+                fnShowIbC();
+            }).animate({ "opacity": "1" }, 500);
+
+        }
+        function fnBackArtContent() {
+            $('#red').animate({ "opacity": "0" }, 100, function() {
+                fnPageReset();
+                fnHideLoader();
+                fnArticles(myUrl);
+                fnEmailToggle();
+            }).animate({ "opacity": "1" }, 500);
+
+        }
+        function fnBackMain() {
+            page = 'Main';
+            $('#red').animate({ "opacity": "0" }, 100, function() {
+                fnPageReset();
+                $('#main').show();
+                $('#feedMain').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                fnRefreshToggle();
+                fnEmailToggle();
+            }).animate({ "opacity": "1" }, 500);
+
+        }
+        //Android hardware back button functionality
+        function onBackKeyDown(e) {
+            try {
+                var activePage = page;
+                if (activePage === "Articles") {
+                    fnBackArticles();
+                } else if (activePage == 'artContent') {
+                    fnBackArtContent();
+                } else if (activePage == 'mainContent') {
+                    fnBackMain();
+                } else if (activePage == 'Categories') {
+                    fnBackMain();
+                } else if (activePage == 'Main') {
+                    function checkButtonSelection(iValue) {
+                        if (iValue == 2) {
+                            navigator.app.exitApp();
+                        }
+                    }
+                    e.preventDefault();
+                    navigator.notification.confirm(
+                    "Are you sure you want to leave the program?",
+                    checkButtonSelection,
+                    'Exit?:',
+                    'Cancel,OK');
+                } else {
+                    navigator.app.backHistory();
+                }
+            } catch (e) { alert('Exception: ' + e, 3); }
+        }
+        //Display loading graphic
+        function fnShowLoader() {
+            $('#loading').append(imgLoader).show();
+        }
+        //Hide loading graphic
+        function fnHideLoader() {
+            $('#loading').html('').hide();
+        }
+
+        //This function populates the main feed on load.
+        function fnMainAjax() {
+            $('#error').remove();
+            try {
+                var u = links[2];
+                fnShowLoader();
+                var c = 0;
+                $.ajax({
+                    url: u,
+                    dataType: 'xml',
+                    timeout: connTime2,
+                    success: function(myxml) {
+                        $(myxml).find('channel').each(function() {
+                            $(this).find('title').each(function() {
+                                titles[c] = $(this).text();
+                                c += 1;
+                            });
+                        });
+                        $('#dynamicMonth').text(titles[0]);
+
+                        //fnLoadMain();
+                        fnHideLoader();
+                        $('#error').remove();
+                        $('#main').show();
+                        //$('#feedMain').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                        $('#red').fadeIn(400);
+                    },
+                    error: function(xhr, ajaxOptions, thrownError) {
+                        fnHideLoader();
+                        $('#red').append(connError2);
+                        $('#btn_retry').trigger('create')
+                        $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                    }
+                });
+            }
+            catch (err) {
+                alert("error: " + error);
+            }
+            finally {
+            }
+        }
+        //send proper url from Category to the fnArticles
+        function fnFindCategoryLink(i) {
+            if (categoryFeed[i].subtitle == '') { paramFeed = categoryFeed[i].title; }
+            else { paramFeed = categoryFeed[i].subtitle; }
+            myUrl = $.trim(categoryFeed[i].link);
+        }
+        var categoryLoad = '';
+        //Populates Main stack via the categoryFeed array
+        function fnLoadIbC() {
+            for (x = 0; x < categoryFeed.length; x++) {
+                var categoryTitle = categoryFeed[x].title;
+                if (categoryFeed[x].subtitle == '') { $('#sections > ul').append('<div class="category_link" id="category' + x + '"><a href="#" data-role="button" class="article_link"  id="category' + x + '" data-feed="' + categoryFeed[x].title + '" data-catid="' + x + '">' + categoryFeed[x].title + '</a></div>'); }
+                if (categoryTitle == categoryFeed[x].title && categoryFeed[x].subtitle != '') {
+                    $('#sections > ul').append('<div class="sub_category_link" id="subcategory' + x + '"><a href="#" data-role="button" class="article_link"  id="category' + x + '" data-feed="' + categoryFeed[x].subtitle + '" data-catid="' + x + '">' + categoryFeed[x].subtitle + '</a></div>');
+                }
+            }
+        }
+        //show IbC
+        function fnShowIbC() {
+            console.log('fnShowIbC page = ' + page);
+            if (page === 'altContent') { page = 'altArticles'; }
+            else { page = "Categories"; }
+            $('#error').remove();
+            $('#categories').show();
+            $('#category_title').html(catTitle).fadeIn(500);
+            $('#sections').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+            $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+        }
+        //Category object used for populating IbC stack
+        function objCategoryList(c, t, l, s) {
+            this.category = c;
+            this.title = t;
+            this.link = l;
+            this.subtitle = s;
+        }
+        //Categories
+        function fnCategories(u, l, t) {
+            fnPageReset();
+            fnRefreshToggle();
+            catTitle = t;
+            $('#category_title').html(catTitle);
+            var sections = '';
+            var c = 0;
+            try {
+                fnShowLoader();
+                $.ajax({
+                    url: u,
+                    dataType: 'xml',
+                    timeout: connTime1,
+                    success: function(myxml) {
+                        $(myxml).find('item').each(function() {
+                            category = t;
+                            $(this).find('title').each(function() {
+                                title = $(this).text();
+                            });
+                            $(this).find('link').each(function() {
+                                link = $(this).text();
+                                subtitle = '';
+                            });
+                            categoryFeed[c] = new objCategoryList(category, title, link, subtitle);
+                            $(this).find('sub').each(function() {
+                                category = t;
+                                $(this).find('subtitle').each(function() {
+                                    c += 1;
+                                    subtitle = $(this).text();
+                                });
+                                $(this).find('sublink').each(function() {
+                                    link = $(this).text();
+                                });
+                                categoryFeed[c] = new objCategoryList(category, title, link, subtitle);
+                            });
+                            c += 1;
+                        });
+                        fnLoadIbC();
+                        fnHideLoader();
+                        fnShowIbC();
+                    },
+                    error: function(error) {
+                        $('#error').remove();
+                        $('#red').append(connError2);
+                        fnHideLoader();
+                        $('#red').fadeIn(400);
+                    }
+                });
+                $('#sections').trigger('create');
+            }
+            catch (err) {
+                alert("error: " + error);
+            }
+            finally {
+            }
+        }
+        //Articles
+        function fnArticles(feed) {
+            if (page == 'altMain' || page == 'altContent') { page = 'altArticles'; }
+            else { page = "Articles"; }
+            fnShowLoader();
+            fnRefreshToggle();
+            fnPageReset();
+            $('#articles').prepend('<div id="top_title" class="top_title"></div>');
+            $('#top_title').html(paramFeed);
+            var title = '';
+            var i = 0;
+            try {
+                $.ajax({
+                    url: feed,
+                    timeout: connTime1,
+                    dataType: 'xml',
+                    success: function(myxml) {
+                        $(myxml).find('item').each(function() {
+                            i += 1;
+                            $(this).find("title").each(function() {
+                                title += '<div class="title_link" id="feed' + i + '"><a href="#content" data-role="button" data-article =' + i + ' data-feed="' + paramFeed + '" class="title_link" id="article' + i + '">' + $(this).text() + '</a></div>';
+                            });
+                        });
+                        $('#artFeed > ul').append(title);
+                        fnHideLoader();
+                        $('#articles').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                        $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                        $('#top_title').show();
+                        $('#artFeed').show();
+                    },
+                    error: function(error) {
+                        $('#error').remove();
+                        fnHideLoader();
+                        $('#red').append(connError2);
+                        $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(400);
+                    }
+                });
+            }
+            catch (err) {
+                alert("error: " + error);
+            }
+            finally {
+            }
+        }
+        $('#index').live('pageinit', '[data-role=page]', function() {
+            fnMainAjax();
+        });
+        $('#index').live('pageshow', '[data-role=page]', function() {
+            //Main page load
+            function fnMain() {
+                page = "Main";
+                //fnPageReset();
+                fnEmailToggle();
+                fnRefreshToggle();
+                //$('#main').show();
+                $('#feedMain').show();
+                $('#header').trigger('create');
+                console.log('Build version: ' + build);
+            }
+
+            fnMain();
+
+            $('#refresh').live('click', function(event) {
+                page = "Main";
+                fnPageReset();
+                fnHideLoader();
+                fnEmailToggle();
+                fnRefreshToggle();
+                fnMainAjax();
+            });
+            //retry button
+            $('#btn_retry').live('click', function(event) {
+                if (page === "Main") { fnMainAjax(); }
+                if (page === "Categories") { fnCategories(url, linkVal, titleVal); }
+                if (page === "Articles") { fnArticles(g_Feed); }
+                if (page === "artContent") { fnContent(g_ID, g_Feed); }
+            });
+
+            //Main link clicks
+            $('.xmlLink').on('click', function(e) {
+                e.preventDefault();
+                paramFeed = $(this).text();
+                myUrl = links[$(e.target).data('link')];
+                page = $(e.target).data('page');
+                if (page == 'altMain') { fnArticles(myUrl); }
+                if (page == 'about') {fnContent(1, myUrl) }
+
+
+            });
+
+            //Country/Theme article load function
+            $('[id^=artFeed]').click(function(e) {
+                e.preventDefault();
+                g_ID = $(e.target).jqmData("article");
+                g_Feed = $(e.target).jqmData("feed");
+                if (g_Feed === undefined) {
+                    g_ID = $(e.target).children().jqmData("article");
+                    g_Feed = $(e.target).children().jqmData("feed");
+                }
+                else {
+                    g_Feed = $(e.target).jqmData("feed");
+                    g_ID = $(e.target).jqmData("article");
+                }
+                if (page == 'altArticles') { page = 'altContent'; }
+                if (page == 'Articles') { page = "artContent"; }
+                fnContent(g_ID, g_Feed);
+            });
+
+            //Country stack article listing function
+            $('#sections').live('click', '[id^=category]', function(e) {
+                e.preventDefault();
+                g_ID = $(e.target).jqmData("article");
+                g_Feed = $(e.target).jqmData("feed");
+                g_param = $(e.target).jqmData("catid");
+                if (g_param === undefined) {
+                    g_ID = $(e.target).children().jqmData("article");
+                    g_Feed = $(e.target).children().jqmData("feed");
+                    g_param = $(e.target).children().jqmData("catid");
+                }
+                else {
+                    g_Feed = $(e.target).jqmData("feed");
+                    g_ID = $(e.target).jqmData("article");
+                    g_param = $(e.target).jqmData("catid");
+                }
+                fnFindCategoryLink(g_param);
+                fnArticles(myUrl);
+            });
+            //Software back button function
+            $('#back').click(function(e) {
+                if (page === "Articles") {
+                    console.log('page = ' + page);
+                    fnBackArticles();
+                    return
+                }
+                if (page === "artContent") {
+                    console.log('page = ' + page);
+                    fnBackArtContent();
+                    return
+                }
+                if (page === 'altContent') {
+                    console.log('page = ' + page);
+                    fnBackArtContent();
+                    return
+                }
+                else {
+                    console.log('page = ' + page);
+                    fnBackMain();
+                    return
+                }
+            });
+            //Logo button return to Main function
+            $('#logo').click(function(e) {
+                fnBackMain();
+            });
+            //Footer button to IbC stack
+            $('#footer').live('click', function(e) {
+                categoryFeed.length = 0;
+                linkVal = $(e.target).data('link');
+                titleVal = $(e.target).data('title');
+                url = links[linkVal];
+                e.preventDefault();
+                page = "Categories";
+                fnEmailToggle();
+                $('#category_title').html();
+                fnCategories(url, linkVal, titleVal);
+            });
+            //childbrowser plugin function
+            $('.urlLink').on('click', function(e) {
+                var link = $(e.target).data('link');
+                link = links[link];
+                if (device.platform == 'iOS') {
+                    function checkButtonSelection(iValue) {
+                        if (iValue == 2) { var ref = window.open(link, '_system', 'location=no,'); }
+                    }
+                    e.preventDefault();
+                    navigator.notification.confirm(
+                    "Visit this website?",
+                    checkButtonSelection,
+                    'Leave the app',
+                    'Cancel,OK');
+                }
+                else {
+                    var ref = window.open(link, '_blank', 'location=no');
+                }
+            });
+
+            $('#story a').live('click', function(e) {
+                e.preventDefault();
+                var link = $(e.target).attr('href');
+                var ref = window.open(link, '_blank', 'location=no');
+            });
+            //Share content via email
+            $('#email').click(function(e) {
+                if (device.platform == 'iOS') {
+                    function checkButtonSelection(iValue) {
+                        if (iValue == 2) {
+                            if (shareTitle == '') {
+                                shareTitle = "Security Council Reports of the UN Security Council";
+                                shareLink = 'http://www.securitycouncilreport.org/';
+                            }
+                            window.location.href = 'mailto:?subject=' + shareTitle + '&body=Here is an report on the Security Council I thought you might find to be of interest: %0D%0A' + shareLink;
+                        }
+                    }
+                    e.preventDefault();
+                    navigator.notification.confirm(
+                    "Leave the app and email this article?",
+                    checkButtonSelection,
+                    'Exit the app',
+                    'Cancel,OK');
+                }
+                else {
+                    if (shareTitle == '') {
+                        shareTitle = "Security Council Reports of the UN Security Council";
+                        shareLink = 'http://www.securitycouncilreport.org/';
+                    }
+                    window.location.href = 'mailto:?subject=' + shareTitle + '&body=Here is an report on the Security Council I thought you might find to be of interest: %0D%0A' + shareLink;
+                }
+            });
+            //Content function for loading individual stories from Country or theme
+            function fnContent(id, feed) {
+                fnPageReset();
+                fnEmailToggle();
+                fnRefreshToggle();
+                $('#content').html('<div id="story" style="display: none;"><div id="story_pubDate"></div><div id="story_title"></div><div id="story_content"></div></div>');
+                if (page == "mainContent") {
+                    var pubDate = '<div class="postDate">posted on </div><div class="pubDate" id="date' + g_ID + '">' + mainFeed[g_ID].pubDate + '</div>';
+                    $('#story_pubDate').html("");
+                    $('#story_pubDate').append(pubDate);
+                    var title = '<div class="story_title" id="title' + g_ID + '">' + mainFeed[g_ID].title + '</div>';
+                    $('#story_title').html("");
+                    $('#story_title').append(title);
+                    shareTitle = mainFeed[g_ID].title;
+                    var content = '<div class="content" id="content' + g_ID + '">' + mainFeed[g_ID].content + '</div></div>';
+                    $('#story_content').html("");
+                    $('#story_content').append(content);
+                    shareLink = mainFeed[g_ID].link;
+                    $('#error').remove();
+                    $('#content').show();
+                    $('#story').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+                    $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+                }
+                else {
+                    var paramId = id;
+                    var i = 0;
+                    try {
+                        fnShowLoader();
+                        $.ajax({
+                            url: myUrl,
+                            timeout: connTime1,
+                            dataType: 'xml',
+                            success: function(contentXml) {
+                                $(contentXml).find('item').each(function() {
+                                    i += 1;
+                                    if (i == paramId) {
+                                        $(this).find("title").each(function() {
+                                            var title = '<div class="story_title" id="title' + i + '">' + $(this).text() + '</div>';
+                                            $('#story_title').html("");
+                                            $('#story_title').append(title);
+                                            shareTitle = $(this).text();
+                                        });
+                                        $(this).find("pubDate").each(function() {
+                                            var pubDate = '<div class="postDate">posted on </div><div class="pubDate" id="date' + i + '">' + $(this).text() + '</div>';
+                                            $('#story_pubDate').html("");
+                                            $('#story_pubDate').append(pubDate);
+                                        });
+                                        $(this).find("description").each(function() {
+                                            var content = '<div class="content" id="content' + i + '">' + $(this).text() + '</div>';
+                                            $('#story_content').html("");
+                                            $('#story_content').append(content);
+                                        });
+                                        $(this).find("link").each(function() {
+                                            shareLink = $(this).text();
+                                        });
+                                        fnHideLoader();
+                                        $('#error').remove();
+                                        $('#content').show();
+                                        $('#story').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+                                        $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+                                    }
+                                });
+                            },
+                            error: function(error) {
+                                $('#error').remove();
+                                fnHideLoader();
+                                $('#red').append(connError2);
+                                $('#red').hide().animate({ scrollTop: 0 }, 50).scrollTop(0).fadeIn(500);
+                            }
+                        });
+                    }
+                    catch (err) {
+                        alert("error: " + error);
+                    }
+                    finally {
+                        fnHideLoader();
+                    }
+                }
+            }
+        }); 
+    </script>
+
+</head>
+<body>
+    <div id="index" data-role="page">
+        <div id="header" class="header" data-role="header" data-position="fixed" data-tap-toggle="false">
+            <ul class="header_list">
+                <li data-touchclick="true" id="back" class="icon_back"><a href="#" data-rel="back">back</a></li>
+                <li data-touchclick="true" id="refresh" class="icon_refresh"><a href="#">refresh</a></li>
+                <li data-touchclick="true" id="logo" class="scr_logo"><a href="#">logo</a></li>
+                <li data-touchclick="true" id="email" class="icon_email"><a href="#">email</a></li>
+            </ul>
+        </div>
+        <div id="loading" style="display: none;">
+        </div>
+        <div id="red" data-role="content">
+            <div id="main" style="display: none;">
+                <div id="plchdr_story" style="display: none;">
+                </div>
+                <div id="feedMain" style="display: none;">
+                    <ul>
+                        <li class="xmlLink" data-link='2' data-list='blurb' data-page='altMain'><span class="xmlLink"
+                            data-link='2' data-list='blurb' data-page='altMain' id="dynamicMonth"></span></li>
+                        <li class="urlLink" data-link='3'><span data-link='3' data-page='altMain'>What&#8217;s
+                            in Blue</span></li>
+                        <li class="xmlLink" data-link='4' data-list='article' data-page='altMain'><span class="xmlLink"
+                            data-link='4' data-list='article' data-page='altMain'>Cross-Cutting Reports</span></li>
+                        <li class="xmlLink" data-link='5' data-list='article' data-page='altMain'><span class="xmlLink"
+                            data-link='5' data-list='article' data-page='altMain'>Special Research Reports</span></li>
+                        <li class="xmlLink" data-link='6' data-list='article' data-page='altMain'><span class="xmlLink"
+                            data-link='6' data-list='article' data-page='altMain'>Update Reports</span></li>
+                        <li class="xmlLink" data-link='7' data-page='about'><span data-link='7' data-page='about'>
+                            About SCR</span></li>
+                        <li class="urlLink" data-link='8' data-page='list'><span data-link='8' data-page='list'>
+                            Visit SCR Desktop Site</span></li>
+                    </ul>
+                </div>
+            </div>
+            <div id="categories" style="display: none;">
+                <div id="category_title" class="top_title" style="display: none;">
+                </div>
+                <div id="sections" style="display: none;">
+                    <ul>
+                    </ul>
+                </div>
+            </div>
+            <div id="articles" style="display: none;">
+                <div id="top_title" class="top_title">
+                </div>
+                <div id="artFeed" style="display: none;">
+                    <ul>
+                    </ul>
+                </div>
+            </div>
+            <div id="content" style="display: none;">
+                <div id="story" style="display: none;">
+                    <div id="story_pubDate">
+                    </div>
+                    <div id="story_title">
+                    </div>
+                    <div id="story_content">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer id="footer">
+        VIEW SRC PUBLICATIONS BY<br />
+        <div class="bottom_buttons" id="btnCountry" data-link='0' data-title="Country Issues">Country</div>
+        <div class="bottom_buttons" id="btnTheme" data-link="1" data-title="Thematic Issues">Theme</div>
+    </footer>
+    </div>
+
+    <script type="text/javascript">
+        $("div.main_link").on("touchclick", function() {
+            $(this).html('');
+        });
+        $("div.main_link").on("touchend MSPointerUp", function() {
+            $(this).html('');
+        });
+        $("div.main_link").on("click", function() {
+            $(this).html('');
+        });
+        $("div.postDate").on("touchclick", function() {
+            $(this).html('');
+        });
+        $("div.postDate").on("touchend MSPointerUp", function() {
+            $(this).html('');
+        });
+        $("div.postDate").on("click", function() {
+            $(this).html('');
+        });
+        $("div.main_title").on("touchclick", function() {
+            $(this).html('');
+        });
+        $("div.main_title").on("touchend MSPointerUp", function() {
+            $(this).html('');
+        });
+        $("div.main_title").on("click", function() {
+            $(this).html('');
+        });
+        $("div.main_blurb").on("touchclick", function() {
+            $(this).html('');
+        });
+        $("div.main_blurb").on("touchend MSPointerUp", function() {
+            $(this).html('');
+        });
+        $("div.main_blurb").on("click", function() {
+            $(this).html('');
+        });
+    </script>
+
+</body>
+</html>

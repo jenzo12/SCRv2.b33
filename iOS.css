@@ -1,0 +1,21 @@
+﻿#red
+{
+    background-color: #fff;
+    height: 100%;
+    min-height: 100%;
+    width: 100%;
+    top: 50px;
+    position: fixed;
+    overflow-y: scroll;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 170px;
+    margin-bottom: 50px;
+}
+.header_fix
+{
+}
+#red > *
+{
+    -webkit-transform: translateZ(0px);
+    padding-bottom: 70px;
+}
